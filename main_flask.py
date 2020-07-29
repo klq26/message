@@ -47,18 +47,18 @@ def packDataWithCommonInfo(isCache = False, isSuccess = True, msg = "success", d
     result = {'code' : code, 'msg' : msg, 'isCache' : False, 'aliyun_date' : dm.getDateTimeString(), 'data' : data, 'duration' : duration}
     return json.dumps(result, ensure_ascii=False, indent=4, sort_keys=True)
 
-def add_to_db(req_form):
+def add_to_db(jsonData):
     """
     把 http request 中 POST 参数写入数据库，并返回消息软件需要的格式（title，text）
     """
-    # 数据库表名
-    class_name = req_form['class_name']
-    # eval 是从字符串字典转回 dict
-    obj = eval(request.form['data'])
+    payload = request.get_data()
+    jsonData = json.loads(payload)
+    obj = jsonData['data']
+    class_name = jsonData['class_name']
     is_init = 0
-    if 'init' in request.form.keys():
-        is_init = int(req_form['init'])
-    if obj != None or len(class_name) > 0:
+    if 'init' in jsonData.keys():
+        is_init = int(jsonData['init'])
+    if obj != None and len(class_name) > 0:
         # 入数据库（确定 id）
         newId = 1
         tb_exist_operation = 'replace'
@@ -73,7 +73,7 @@ def add_to_db(req_form):
         obj['aliyun_date'] = dm.getDateTimeString()
         df = pd.DataFrame(obj, index=[newId])
         df.to_sql(f'{class_name}', engine, if_exists=tb_exist_operation, index=True)
-        return {'title':class_name, 'text': json.dumps(obj, indent=4, sort_keys=False, ensure_ascii=False)}
+    return {'title':class_name, 'text': json.dumps(obj, indent=4, sort_keys=False, ensure_ascii=False)}
 
 @app.route('/message/api/email', methods=['POST'])
 def send_msg_by_email():
@@ -90,7 +90,8 @@ def send_msg_by_email():
     end_ts = dm.getTimeStamp()
     duration = dm.getDuration(start_ts, end_ts)
     data = packDataWithCommonInfo(duration = duration, data = data)
-    return Response(data, status=200, mimetype='application/json')
+    resp_data = json.dumps({'status':'ok', 'message':'上报成功'})
+    return Response(resp_data, status=200, mimetype='application/json')
 
 @app.route('/message/api/dingtalk', methods=['POST'])
 def send_msg_by_dingtalk():
@@ -107,7 +108,8 @@ def send_msg_by_dingtalk():
     end_ts = dm.getTimeStamp()
     duration = dm.getDuration(start_ts, end_ts)
     data = packDataWithCommonInfo(duration = duration, data = data)
-    return Response(data, status=200, mimetype='application/json')
+    resp_data = json.dumps({'status':'ok', 'message':'上报成功'})
+    return Response(resp_data, status=200, mimetype='application/json')
 
 @app.route('/message/api/all', methods=['POST'])
 def send_msg_by_all_approach():
@@ -117,8 +119,8 @@ def send_msg_by_all_approach():
     start_ts = dm.getTimeStamp()
     data = {}
     if request.method=='POST':
-        # 插入数据库，返回数据
-        info = add_to_db(request.form)
+        # 插入数据库，返回数据（request payload json 数据）
+        info = add_to_db(request.get_data())
         # 发钉钉
         dingdingMessager().send(info['title'] + '\n\n' + info['text'])
         # 发邮件
@@ -126,7 +128,8 @@ def send_msg_by_all_approach():
     end_ts = dm.getTimeStamp()
     duration = dm.getDuration(start_ts, end_ts)
     data = packDataWithCommonInfo(duration = duration, data = data)
-    return Response(data, status=200, mimetype='application/json')
+    resp_data = json.dumps({'status':'ok', 'message':'上报成功'})
+    return Response(resp_data, status=200, mimetype='application/json')
 
 if __name__ == '__main__':
     app.run(port=5000, debug=True)
